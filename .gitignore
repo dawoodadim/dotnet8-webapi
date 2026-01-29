@@ -1,0 +1,19 @@
+# .NET build
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# App settings
+appsettings.json
+appsettings.Development.json
+appsettings.*.json
+
+# Logs
+Logs/
+
+# Optional
+.env
