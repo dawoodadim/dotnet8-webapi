@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using MiddlewareFilterDI.Data;
 using MiddlewareFilterDI.Models;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // 🔐 JWT required
+//[Authorize] // 🔐 JWT required
 public class TicketController : ControllerBase
 {
     private readonly MyDbContext _db;
@@ -99,5 +100,57 @@ public class TicketController : ControllerBase
                 Error = ex.Message
             });
         }
+    }
+    [HttpGet("DateWiseTickets")]
+    public async Task<IActionResult> dateWiseTickets( DateTime fromDate, DateTime toDate)
+    {
+        _logger.LogInformation("Datewise Tickets called",fromDate,toDate);
+        string jsonResp = "";
+        try
+        {
+            var datewise = _db.TicketSaleMasters.
+                Select(t=> new TicketSaleMaster
+                {
+                    TicketId = t.TicketId,
+                    TicketStatus = t.TicketStatus ?? "",
+                    Pg_Transactionid = t.Pg_Transactionid,
+                    TicketCreatedNo = t.TicketCreatedNo
+                })
+                .Where(x => x.TicketCreatedNo >= fromDate && x.TicketCreatedNo <= toDate)
+                .ToList();
+            if (datewise != null && datewise.Any())
+            {
+                _logger.LogInformation("DateWiseTickets",datewise);
+
+                jsonResp = JsonConvert.SerializeObject(new
+                {
+                    Status = "0",
+                    Message = "Data Found",
+                    ticketdetails = datewise
+                });
+            }
+            else
+            {
+                _logger.LogWarning("dewdwe");
+                jsonResp = JsonConvert.SerializeObject(new
+                {
+                    Status = "0",
+                    Message = "Ticket Not Found",
+                    ticketdetails = Array.Empty<object>()
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred while fetching tickets count.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                Status = "-1",
+                Message = "An error occurred while fetching tickets count",
+                Error = ex.Message
+            });
+        }
+        Response.StatusCode = StatusCodes.Status200OK;
+        return Content(jsonResp, "application/json");
     }
 }

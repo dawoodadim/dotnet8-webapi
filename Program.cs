@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using Serilog;
+using MiddlewareFilterDI.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,7 @@ builder.Host.UseSerilog();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ActionLogFilter>();
 builder.Services.AddControllers();
-
+builder.Services.AddSignalR();
 // Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -103,6 +104,8 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
+
+app.MapHub<NotificationHub>("/notificationHub");
 // --------------------
 // Middleware
 // --------------------

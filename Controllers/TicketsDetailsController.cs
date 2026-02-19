@@ -1,9 +1,15 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MiddlewareFilterDI.Data;
+using MiddlewareFilterDI.Models;
 using Newtonsoft.Json;
+using MiddlewareFilterDI.Hubs;
 using static MiddlewareFilterDI.Controllers.LoginController;
+using Microsoft.Data.SqlClient;
+using System.Data;
+using Newtonsoft.Json.Linq;
 
 namespace MiddlewareFilterDI.Controllers
 {
@@ -14,6 +20,8 @@ namespace MiddlewareFilterDI.Controllers
         private readonly IConfiguration _configuration;
         private readonly MyDbContext _db;
         private readonly ILogger<TicketsDetailsController> _logger;
+        private readonly IHubContext<NotificationHub>? _hubContext;
+
 
         public TicketsDetailsController(IConfiguration configuration, MyDbContext db, ILogger<TicketsDetailsController> logger)
         {
@@ -23,7 +31,7 @@ namespace MiddlewareFilterDI.Controllers
         }
         [Authorize]
         [HttpGet("TicketDetails")]
-        public async Task<IActionResult> login(string Email)
+        public async Task<IActionResult> Detials(string Email)
         {
             _logger.LogInformation("Fetching ticket details for Email/Name/TicketId: {Email}", Email);
 
@@ -77,5 +85,80 @@ namespace MiddlewareFilterDI.Controllers
             Response.StatusCode = StatusCodes.Status200OK;
             return Content(jsonResp, "application/json");
         }
+
+        //[Authorize]
+        [HttpPost("TicketApproval")]
+        public async Task<IActionResult> TicketApproval(string TicketId)
+        {
+            var con = (SqlConnection)_db.Database.GetDbConnection();
+            //SqlConnection con = new SqlConnection(ConfigurationManager.ConnectionStrings["constring"].ToString());
+            
+            string response = "";
+            try
+            {
+                string checkQuery = "SELECT TicketUsed FROM [tbl_TicketSaleMaster] WHERE TicketId = '" + TicketId + "'";
+                using (SqlCommand checkCmd = new SqlCommand(checkQuery, con))
+                {
+                    checkCmd.CommandType = CommandType.Text;
+                    //checkCmd.Parameters.AddWithValue("@TicketId", TicketId);
+                    con.Open();
+
+                    object ticketUsedValue = checkCmd.ExecuteScalar(); // Get TicketUsed value
+                    con.Close();
+
+                    if (ticketUsedValue != null && ticketUsedValue.ToString() == "1")
+                    {
+                        // If TicketUsed is already 1, return a response without updating
+                        //response = "{\n \"Status\":\"1\",\n \"UserDetails\":" + JsonConvert.SerializeObject("Ticket already used") + " \n}";
+
+                        response = JsonConvert.SerializeObject(new
+                        {
+                            Status = "1",
+                            UserDetails = "Ticket already used"
+                        });
+                    }
+                    else
+                    {
+
+                        string qry = "UPDATE [tbl_TicketSaleMaster] SET TicketUsed = '1', TicketUsedOn = GETDATE() WHERE  TicketId = '" + TicketId + "' ";
+                        SqlCommand cmd = new SqlCommand(qry, con);
+                        cmd.CommandType = CommandType.Text;
+                        con.Open();
+                        int i = cmd.ExecuteNonQuery();
+                        con.Close();
+                        if (i > 0)
+                        {
+                            //response = "{\n \"Status\":\"0\",\n \"UserDetails\":" + JsonConvert.SerializeObject("UPDATED") + " \n}";
+                            response = JsonConvert.SerializeObject(new
+                            {
+                                Status = "0",
+                                Message = "Updated"
+                            });
+                        }
+                        else
+                        {
+                            //response = "{\n \"Status\":\"1\",\n \"UserDetails\":" + JsonConvert.SerializeObject("Not found") + " \n}";
+                            response = JsonConvert.SerializeObject(new
+                            {
+                                Status = "0",
+                                Message = "Ticket Not Found"
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    Status = "-1",
+                    Message = "Internal Server Error",
+                    Error = ex.Message
+                });
+            }
+            Response.StatusCode = StatusCodes.Status200OK;
+            return Content(response, "application/json");
+        }
+
     }
 }
